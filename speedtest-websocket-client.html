@@ -115,8 +115,8 @@
     </div>
 
     <script type="module">
-        // Import the WebSocket SDK
-        import SpeedTestWebSocketSdk from './SpeedTestWebSocketSdk.js';
+        // Import the new WebSocket SDK
+        import SpeedTestWebSocketSdkNew from './SpeedTestWebSocketSdkNew.js';
         
         // Configuration
         const serverUrl = `ws://${window.location.hostname || 'localhost'}:8090`;
@@ -131,9 +131,10 @@
             }
         }
         
-        // Initialize the WebSocket SDK
-        const speedTestSDK = new SpeedTestWebSocketSdk(serverUrl, {
-            authToken: authToken
+        // Initialize the new WebSocket SDK
+        const speedTestSDK = new SpeedTestWebSocketSdkNew(serverUrl, {
+            authToken: authToken,
+            debug: DEBUG
         });
         
         // Initialize connection when page loads
@@ -165,7 +166,7 @@
                 setProgress(25);
                 
                 // Connect to WebSocket server
-                await speedTestSDK.connectWebSocket();
+                await speedTestSDK.connect();
                 
                 debug('Connected to WebSocket server');
                 updateStatus('Connected to WebSocket server', 'success');
@@ -312,21 +313,13 @@
             testInProgress = true;
             enableButtons(false);
             updateStatus('Testing ping...', 'status');
-            setProgress(50);
             
             try {
-                // Make sure we're connected
-                if (!speedTestSDK.isConnected) {
-                    await initConnection();
-                }
-                
                 const pingTime = await speedTestSDK.testPing();
                 pingResultElement.textContent = `${pingTime.toFixed(2)} ms`;
                 updateStatus('Ping test completed', 'success');
-                setProgress(100);
             } catch (error) {
                 console.error('Ping test error:', error);
-                pingResultElement.textContent = 'Error';
                 updateStatus('Ping test failed', 'error');
             } finally {
                 testInProgress = false;
@@ -334,7 +327,7 @@
             }
         }
         
-        async function testDownload() {
+        async function testDownloadSpeed() {
             if (testInProgress) return;
             
             testInProgress = true;
@@ -362,7 +355,7 @@
             }
         }
         
-        async function testUpload() {
+        async function testUploadSpeed() {
             if (testInProgress) return;
             
             console.log('Starting upload test');
@@ -506,7 +499,7 @@
         }
         
         function formatSpeed(bitsPerSecond) {
-            return SpeedTestWebSocketSdk.formatSpeed(bitsPerSecond);
+            return speedTestSDK.formatSpeed(bitsPerSecond);
         }
         
         function generateRequestId() {
@@ -515,8 +508,8 @@
         
         // Event listeners
         pingButton.addEventListener('click', testPing);
-        downloadButton.addEventListener('click', testDownload);
-        uploadButton.addEventListener('click', testUpload);
+        downloadButton.addEventListener('click', testDownloadSpeed);
+        uploadButton.addEventListener('click', testUploadSpeed);
         fullTestButton.addEventListener('click', runFullTest);
         
         // Initialize

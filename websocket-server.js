@@ -28,9 +28,12 @@ const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true';
 const TOKEN_HEADER = process.env.TOKEN_HEADER || 'Authorization';
 const TOKEN_PREFIX = process.env.TOKEN_PREFIX || 'Bearer ';
 
-// Create a 1MB test file in memory for download tests
-const TEST_FILE_SIZE = 1024 * 1024; // 1MB
-const testData = crypto.randomBytes(TEST_FILE_SIZE);
+// Default test parameters
+const DEFAULT_CHUNK_SIZE = 65536; // 64KB chunks
+const DEFAULT_TOTAL_SIZE = 512 * 1024; // 0.5MB total
+
+// Create a test file in memory for download tests
+const testData = crypto.randomBytes(DEFAULT_TOTAL_SIZE);
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ port: PORT });
@@ -220,10 +223,13 @@ function handlePing(ws, msg) {
  */
 function handleDownload(ws, msg) {
   const chunkSize = msg.chunkSize || 102400; // Default 100KB chunks
-  const chunks = Math.ceil(TEST_FILE_SIZE / chunkSize);
-  const totalSize = TEST_FILE_SIZE;
+  const totalSize = msg.size || DEFAULT_TOTAL_SIZE;
+  const chunks = Math.ceil(totalSize / chunkSize);
   
   console.log(`Starting download test: ${chunks} chunks of ${chunkSize} bytes`);
+  
+  // Store start time for speed calculation
+  ws.downloadStartTime = Date.now();
   
   // Send test info
   ws.send(JSON.stringify({
@@ -240,7 +246,7 @@ function handleDownload(ws, msg) {
   
   function sendNextChunk() {
     if (sentChunks >= chunks) {
-      // Test complete
+      // Test complete - send total bytes for client-side calculation
       ws.send(JSON.stringify({
         type: 'download_complete',
         totalBytes: sentBytes,
@@ -314,19 +320,10 @@ function handleUploadChunk(ws, data) {
   }
   // If all chunks received, send result
   if (ws.uploadTracker.receivedBytes >= ws.uploadTracker.totalSize) {
-    // Calculate results
-    const duration = (Date.now() - ws.uploadTracker.startTime) / 1000; // seconds
-    const bytesPerSecond = ws.uploadTracker.receivedBytes / duration;
-    const bitsPerSecond = bytesPerSecond * 8;
-    
-    console.log('Upload complete:', ws.uploadTracker.receivedBytes, 'bytes received');
-    
-    // Send results
+    // Send upload result with total bytes for client-side calculation
     ws.send(JSON.stringify({
       type: 'upload_result',
-      bytesReceived: ws.uploadTracker.receivedBytes,
-      duration: duration,
-      bitsPerSecond: bitsPerSecond,
+      totalBytes: ws.uploadTracker.receivedBytes,
       timestamp: Date.now(),
       requestId: ws.uploadTracker.requestId
     }));

@@ -74,8 +74,8 @@ class SpeedTestSDK {
     // Test upload speed
     async testUploadSpeed() {
       try {
-        // Create a 1MB file to upload
-        const testData = new Uint8Array(1024 * 1024); // 1MB of data
+        // Create a 0.5MB file to upload
+        const testData = new Uint8Array(512 * 1024); // 0.5MB of data
         for (let i = 0; i < testData.length; i++) {
           testData[i] = Math.floor(Math.random() * 256);
         }
