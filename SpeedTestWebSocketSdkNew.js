@@ -398,25 +398,23 @@ class SpeedTestWebSocketSdkNew {
             remainingBytes -= actualChunkSize;
         }
         
-        // Send chunks with minimal delay
-        let chunkIndex = 0;
-        const sendNextChunk = () => {
-            if (chunkIndex >= chunks.length || !this.isConnected) return;
+        // Send all chunks without delay for maximum speed
+        this.log(`Sending all ${numChunks} chunks without delay for maximum speed`);
+        
+        // Use a loop to send all chunks immediately
+        for (let i = 0; i < chunks.length; i++) {
+            if (!this.isConnected) break;
             
             // Send the chunk as binary data
-            this.ws.send(chunks[chunkIndex]);
+            this.ws.send(chunks[i]);
             
-            this.log(`Sent upload chunk ${chunkIndex + 1}/${numChunks} (${chunks[chunkIndex].byteLength} bytes)`);
-            
-            // Schedule next chunk with minimal delay
-            chunkIndex++;
-            if (chunkIndex < chunks.length) {
-                setTimeout(sendNextChunk, 5); // 5ms delay between chunks for better network utilization
+            // Log every 4th chunk to reduce console spam
+            if (i % 4 === 0 || i === chunks.length - 1) {
+                this.log(`Sent upload chunk ${i + 1}/${numChunks} (${chunks[i].byteLength} bytes)`);
             }
-        };
+        }
         
-        // Start sending chunks
-        sendNextChunk();
+        this.log(`All ${numChunks} chunks sent without delay`);
     }
 
     /**
