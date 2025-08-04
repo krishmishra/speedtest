@@ -375,32 +375,48 @@ class SpeedTestWebSocketSdkNew {
      * Send upload data in chunks
      */
     sendUploadData() {
-        const chunkSize = 65536; // 64KB chunks (crypto limit)
+        // Optimized chunk size: 64KB chunks (maximum for crypto.getRandomValues)
+        const chunkSize = 65536; // 64KB chunks - crypto API limit
         const totalSize = 512 * 1024; // 0.5MB total
         const numChunks = Math.ceil(totalSize / chunkSize);
         
         this.log(`Sending upload data: ${numChunks} chunks of ${chunkSize} bytes`);
         
+        // Pre-generate all chunks at once for better performance
+        const chunks = [];
+        let remainingBytes = totalSize;
+        
+        // Create all chunks upfront
         for (let i = 0; i < numChunks; i++) {
-            setTimeout(() => {
-                if (!this.isConnected) return;
-                
-                // Calculate actual chunk size (last chunk might be smaller)
-                const actualChunkSize = Math.min(chunkSize, totalSize - (i * chunkSize));
-                
-                // Create random data chunk
-                const data = new Uint8Array(actualChunkSize);
-                window.crypto.getRandomValues(data);
-                
-                // Send the chunk
-                this.ws.send(data.buffer);
-                
-                this.log(`Sent upload chunk ${i + 1}/${numChunks} (${actualChunkSize} bytes)`);
-                
-                // Note: Server automatically calculates results after all chunks received
-                // No need to send upload_complete message
-            }, i * 50); // 50ms delay between chunks
+            const actualChunkSize = Math.min(chunkSize, remainingBytes);
+            const data = new Uint8Array(actualChunkSize);
+            
+            // Fill with random data safely (respecting the 64KB limit)
+            this.fillRandomData(data);
+            
+            chunks.push(data.buffer);
+            remainingBytes -= actualChunkSize;
         }
+        
+        // Send chunks with minimal delay
+        let chunkIndex = 0;
+        const sendNextChunk = () => {
+            if (chunkIndex >= chunks.length || !this.isConnected) return;
+            
+            // Send the chunk as binary data
+            this.ws.send(chunks[chunkIndex]);
+            
+            this.log(`Sent upload chunk ${chunkIndex + 1}/${numChunks} (${chunks[chunkIndex].byteLength} bytes)`);
+            
+            // Schedule next chunk with minimal delay
+            chunkIndex++;
+            if (chunkIndex < chunks.length) {
+                setTimeout(sendNextChunk, 5); // 5ms delay between chunks for better network utilization
+            }
+        };
+        
+        // Start sending chunks
+        sendNextChunk();
     }
 
     /**
@@ -429,6 +445,28 @@ class SpeedTestWebSocketSdkNew {
         }
         
         return `${speed.toFixed(2)} ${units[unitIndex]}`;
+    }
+    
+    /**
+     * Fill an array with random data safely, respecting the crypto API's 64KB limit
+     * 
+     * @param {Uint8Array} array - Array to fill with random data
+     */
+    fillRandomData(array) {
+        const CRYPTO_CHUNK_SIZE = 65536; // 64KB - maximum size for crypto.getRandomValues()
+        let offset = 0;
+        
+        while (offset < array.length) {
+            const length = Math.min(CRYPTO_CHUNK_SIZE, array.length - offset);
+            const chunk = new Uint8Array(length);
+            
+            // Generate random values for this chunk
+            window.crypto.getRandomValues(chunk);
+            
+            // Copy the chunk into the main array
+            array.set(chunk, offset);
+            offset += length;
+        }
     }
 
     /**

@@ -301,20 +301,23 @@ function handleUploadChunk(ws, data) {
     return;
   }
   
-  // Add bytes to the tracker
-  ws.uploadTracker.receivedBytes += data.length;
+  // Add bytes to the tracker - use byteLength for ArrayBuffer data
+  const byteCount = data.byteLength || data.length;
+  ws.uploadTracker.receivedBytes += byteCount;
   ws.uploadTracker.bytesReceived = ws.uploadTracker.receivedBytes; // Keep both properties in sync
   
   // Calculate progress
   const progress = Math.min((ws.uploadTracker.receivedBytes / ws.uploadTracker.totalSize) * 100, 100);
   
-  // Send progress update every 10%
-  if (progress >= ws.uploadTracker.lastProgressUpdate + 10 || progress >= 100) {
-    ws.uploadTracker.lastProgressUpdate = Math.floor(progress / 10) * 10;
+  // More frequent progress updates (every 5% instead of 10%)
+  if (progress >= ws.uploadTracker.lastProgressUpdate + 5 || progress >= 100) {
+    ws.uploadTracker.lastProgressUpdate = Math.floor(progress / 5) * 5;
     
     ws.send(JSON.stringify({
       type: 'upload_progress',
       progress: progress,
+      bytesReceived: ws.uploadTracker.receivedBytes,
+      totalBytes: ws.uploadTracker.totalSize,
       requestId: ws.uploadTracker.requestId
     }));
   }
