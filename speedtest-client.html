@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-controls {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0;
+            transition: width 0.3s;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .result-label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Speed Test Client</h1>
+        
+        <div class="test-controls">
+            <button id="pingTest">Test Ping</button>
+            <button id="downloadTest">Test Download Speed</button>
+            <button id="uploadTest">Test Upload Speed</button>
+            <button id="fullTest">Run Full Test</button>
+        </div>
+        
+        <div class="progress-bar">
+            <div id="progressBar" class="progress"></div>
+        </div>
+        
+        <div class="results">
+            <div class="result-item">
+                <span class="result-label">Download Speed:</span>
+                <span id="downloadResult">Not tested</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Upload Speed:</span>
+                <span id="uploadResult">Not tested</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Ping:</span>
+                <span id="pingResult">Not tested</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Status:</span>
+                <span id="statusText">Ready</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the SDK
+        import SpeedTestSDK from './SpeedTestSdk.js';
+        
+        // Configuration
+        const SERVER_URL = 'http://localhost:8080'; // Change to your Docker container's address
+        
+        // DOM Elements
+        const pingBtn = document.getElementById('pingTest');
+        const downloadBtn = document.getElementById('downloadTest');
+        const uploadBtn = document.getElementById('uploadTest');
+        const fullTestBtn = document.getElementById('fullTest');
+        const progressBar = document.getElementById('progressBar');
+        const downloadResult = document.getElementById('downloadResult');
+        const uploadResult = document.getElementById('uploadResult');
+        const pingResult = document.getElementById('pingResult');
+        const statusText = document.getElementById('statusText');
+        
+        // Initialize the SDK
+        const speedTestSDK = new SpeedTestSDK(SERVER_URL, 'Authorization', 'Bearer none', 3); // No auth token for local testing
+        
+        // Utility functions
+        function setStatus(text) {
+            statusText.textContent = text;
+        }
+        
+        function setProgress(percent) {
+            progressBar.style.width = `${percent}%`;
+        }
+        
+        function formatSpeed(speedBps) {
+            return speedTestSDK.formatSpeed(speedBps);
+        }
+        
+        // Test functions using SDK
+        async function testPing() {
+            setStatus('Testing ping...');
+            pingBtn.disabled = true;
+            fullTestBtn.disabled = true;
+            setProgress(50);
+            
+            try {
+                const pingTime = await speedTestSDK.testPing();
+                pingResult.textContent = `${pingTime.toFixed(2)} ms`;
+                setStatus('Ping test complete');
+                setProgress(100);
+                
+                return pingTime;
+            } catch (error) {
+                console.error('Ping test error:', error);
+                pingResult.textContent = 'Error';
+                setStatus('Ping test failed');
+                return null;
+            } finally {
+                pingBtn.disabled = false;
+                fullTestBtn.disabled = false;
+            }
+        }
+        
+        async function testDownloadSpeed() {
+            setStatus('Testing download speed...');
+            downloadBtn.disabled = true;
+            fullTestBtn.disabled = true;
+            
+            try {
+                const downloadSpeed = await speedTestSDK.testDownloadSpeed();
+                downloadResult.textContent = formatSpeed(downloadSpeed);
+                setStatus('Download test complete');
+                setProgress(100);
+                
+                return downloadSpeed;
+            } catch (error) {
+                console.error('Download test error:', error);
+                downloadResult.textContent = 'Error';
+                setStatus('Download test failed');
+                return null;
+            } finally {
+                downloadBtn.disabled = false;
+                fullTestBtn.disabled = false;
+            }
+        }
+        
+        async function testUploadSpeed() {
+            setStatus('Testing upload speed...');
+            uploadBtn.disabled = true;
+            fullTestBtn.disabled = true;
+            
+            try {
+                const uploadSpeed = await speedTestSDK.testUploadSpeed();
+                uploadResult.textContent = formatSpeed(uploadSpeed);
+                setStatus('Upload test complete');
+                setProgress(100);
+                
+                return uploadSpeed;
+            } catch (error) {
+                console.error('Upload test error:', error);
+                uploadResult.textContent = 'Error';
+                setStatus('Upload test failed');
+                return null;
+            } finally {
+                uploadBtn.disabled = false;
+                fullTestBtn.disabled = false;
+            }
+        }
+        
+        async function runFullTest() {
+            setStatus('Running full speed test...');
+            downloadBtn.disabled = true;
+            uploadBtn.disabled = true;
+            fullTestBtn.disabled = true;
+            
+            try {
+                await testPing();
+                setProgress(33);
+                
+                await testDownloadSpeed();
+                setProgress(66);
+                
+                await testUploadSpeed();
+                setProgress(100);
+                
+                setStatus('Full test complete');
+            } catch (error) {
+                console.error('Full test error:', error);
+                setStatus('Full test failed');
+            } finally {
+                downloadBtn.disabled = false;
+                uploadBtn.disabled = false;
+                fullTestBtn.disabled = false;
+            }
+        }
+        
+        // Event listeners
+        pingBtn.addEventListener('click', testPing);
+        downloadBtn.addEventListener('click', testDownloadSpeed);
+        uploadBtn.addEventListener('click', testUploadSpeed);
+        fullTestBtn.addEventListener('click', runFullTest);
+        
+        // Initialize
+        setStatus('Ready to test');
+    </script>
+</body>
+</html>

@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Speed Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-controls {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .result-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #4CAF50;
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .status {
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            color: #f44336;
+        }
+        .success {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket Speed Test</h1>
+        
+        <div class="test-controls">
+            <button id="pingButton">Test Ping</button>
+            <button id="downloadButton">Test Download Speed</button>
+            <button id="uploadButton">Test Upload Speed</button>
+            <button id="fullTestButton">Run Full Test</button>
+        </div>
+        
+        <div class="status" id="status">Ready to test. Click a button above to begin.</div>
+        
+        <div class="progress-bar-container" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="results" id="results">
+            <div class="result-item">
+                <strong>Ping:</strong> <span id="pingResult">Not tested</span>
+            </div>
+            <div class="result-item">
+                <strong>Download Speed:</strong> <span id="downloadResult">Not tested</span>
+            </div>
+            <div class="result-item">
+                <strong>Upload Speed:</strong> <span id="uploadResult">Not tested</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the WebSocket SDK
+        import SpeedTestWebSocketSdk from './SpeedTestWebSocketSdk.js';
+        
+        // Configuration
+        const serverUrl = `ws://${window.location.hostname || 'localhost'}:8090`;
+        const authToken = null; // Set to your auth token if required
+        
+        // Debug mode
+        const DEBUG = true;
+        
+        function debug(...args) {
+            if (DEBUG) {
+                console.log(...args);
+            }
+        }
+        
+        // Initialize the WebSocket SDK
+        const speedTestSDK = new SpeedTestWebSocketSdk(serverUrl, {
+            authToken: authToken
+        });
+        
+        // Initialize connection when page loads
+        window.addEventListener('load', function() {
+            debug('Page loaded, initializing connection...');
+            initConnection();
+        });
+        
+        // State variables
+        let testInProgress = false;
+        
+        // UI Elements
+        const pingButton = document.getElementById('pingButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const uploadButton = document.getElementById('uploadButton');
+        const fullTestButton = document.getElementById('fullTestButton');
+        const statusElement = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const pingResultElement = document.getElementById('pingResult');
+        const downloadResultElement = document.getElementById('downloadResult');
+        const uploadResultElement = document.getElementById('uploadResult');
+        
+        // Initialize connection using SDK
+        async function initConnection() {
+            try {
+                debug('Connecting to WebSocket server...');
+                updateStatus('Connecting to WebSocket server...', 'status');
+                setProgress(25);
+                
+                // Connect to WebSocket server
+                await speedTestSDK.connectWebSocket();
+                
+                debug('Connected to WebSocket server');
+                updateStatus('Connected to WebSocket server', 'success');
+                setProgress(0);
+                enableButtons(true);
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('Failed to connect to WebSocket server: ' + error.message, 'error');
+                // Try to reconnect after 5 seconds
+                setTimeout(initConnection, 5000);
+            }
+        }
+        
+        // SDK handles all WebSocket communication now
+        
+        // Handle binary data (for download test)
+        function handleBinaryMessage(data) {
+            // Update progress based on received chunk size
+            const chunkSize = data.size;
+            console.log(`Received binary chunk: ${chunkSize} bytes`);
+        }
+        
+        // Message handlers
+        function handleConnected(message) {
+            console.log('Connected to server:', message);
+            updateStatus(`Connected to server. Auth: ${message.authEnabled ? 'Enabled' : 'Disabled'}`, 'success');
+        }
+        
+        function handlePong(message) {
+            const pingTime = performance.now() - pingStartTime;
+            pingResultElement.textContent = `${pingTime.toFixed(2)} ms`;
+            
+            // Check if this is part of a full test sequence
+            if (window.currentFullTestRequestId && message.requestId === window.currentFullTestRequestId) {
+                updateStatus('Ping test completed, starting download test...', 'status');
+                // Client triggers the next test in the sequence
+                setTimeout(() => {
+                    ws.send(JSON.stringify({
+                        type: 'download',
+                        chunkSize: 102400, // 100KB chunks
+                        requestId: window.currentFullTestRequestId
+                    }));
+                }, 500);
+            } else {
+                updateStatus('Ping test completed', 'success');
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        function handleDownloadStart(message) {
+            downloadStartTime = performance.now();
+            updateStatus(`Starting download test: ${message.totalChunks} chunks, ${formatBytes(message.totalSize)}`, 'status');
+            setProgress(0);
+        }
+        
+        function handleDownloadProgress(message) {
+            const progress = message.progress;
+            setProgress(progress);
+            updateStatus(`Downloading: ${progress.toFixed(1)}% complete`, 'status');
+        }
+        
+        function handleDownloadComplete(message) {
+            console.log('Download complete received:', message);
+            const downloadTime = performance.now() - downloadStartTime;
+            const speedBps = (message.totalBytes * 8) / (downloadTime / 1000);
+            downloadResultElement.textContent = formatSpeed(speedBps);
+            
+            // Check if this is part of a full test sequence
+            if (window.currentFullTestRequestId && message.requestId === window.currentFullTestRequestId) {
+                updateStatus('Download test completed, starting upload test...', 'status');
+                // Client triggers the upload test in the sequence
+                setTimeout(() => {
+                    ws.send(JSON.stringify({
+                        type: 'upload',
+                        totalChunks: 10,
+                        requestId: window.currentFullTestRequestId
+                    }));
+                }, 500);
+            } else {
+                updateStatus('Download test completed', 'success');
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        function handleUploadReady(message) {
+            console.log('Upload ready received:', message);
+            uploadStartTime = performance.now();
+            updateStatus('Starting upload test', 'status');
+            setProgress(0);
+            
+            // Create and send test data
+            sendUploadData();
+        }
+        
+        function handleUploadProgress(message) {
+            console.log('Upload progress received:', message);
+            // Ensure progress doesn't exceed 100%
+            const progress = Math.min(message.progress, 100);
+            setProgress(progress);
+            updateStatus(`Uploading: ${progress.toFixed(1)}% complete`, 'status');
+        }
+        
+        function handleUploadResult(message) {
+            console.log('Upload result received:', message);
+            uploadResultElement.textContent = formatSpeed(message.bitsPerSecond);
+            console.log('Setting upload result to:', formatSpeed(message.bitsPerSecond));
+            
+            // Check if this is part of a full test sequence
+            if (window.currentFullTestRequestId && message.requestId === window.currentFullTestRequestId) {
+                updateStatus('Full speed test completed', 'success');
+                // Clear the full test requestId
+                window.currentFullTestRequestId = null;
+            } else {
+                updateStatus('Upload test completed', 'success');
+            }
+            
+            setProgress(100);
+            testInProgress = false;
+            enableButtons(true);
+        }
+        
+        function handleError(message) {
+            updateStatus(`Error: ${message.message}`, 'error');
+            testInProgress = false;
+            enableButtons(true);
+        }
+        
+        function handleFullTestStart(message) {
+            updateStatus('Starting full speed test', 'status');
+            pingResultElement.textContent = 'Testing...';
+            downloadResultElement.textContent = 'Waiting...';
+            uploadResultElement.textContent = 'Waiting...';
+            console.log('Full test started with requestId:', message.requestId);
+            // Store the requestId for tracking the full test sequence
+            window.currentFullTestRequestId = message.requestId;
+        }
+        
+        // Test functions using SDK
+        async function testPing() {
+            if (testInProgress) return;
+            
+            testInProgress = true;
+            enableButtons(false);
+            updateStatus('Testing ping...', 'status');
+            setProgress(50);
+            
+            try {
+                // Make sure we're connected
+                if (!speedTestSDK.isConnected) {
+                    await initConnection();
+                }
+                
+                const pingTime = await speedTestSDK.testPing();
+                pingResultElement.textContent = `${pingTime.toFixed(2)} ms`;
+                updateStatus('Ping test completed', 'success');
+                setProgress(100);
+            } catch (error) {
+                console.error('Ping test error:', error);
+                pingResultElement.textContent = 'Error';
+                updateStatus('Ping test failed', 'error');
+            } finally {
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        async function testDownload() {
+            if (testInProgress) return;
+            
+            testInProgress = true;
+            enableButtons(false);
+            updateStatus('Preparing download test...', 'status');
+            setProgress(0);
+            
+            try {
+                const downloadSpeed = await speedTestSDK.testDownloadSpeed({
+                    onProgress: (progress) => {
+                        setProgress(progress);
+                        updateStatus(`Downloading: ${progress.toFixed(1)}% complete`, 'status');
+                    }
+                });
+                downloadResultElement.textContent = formatSpeed(downloadSpeed);
+                updateStatus('Download test completed', 'success');
+                setProgress(100);
+            } catch (error) {
+                console.error('Download test error:', error);
+                downloadResultElement.textContent = 'Error';
+                updateStatus('Download test failed', 'error');
+            } finally {
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        async function testUpload() {
+            if (testInProgress) return;
+            
+            console.log('Starting upload test');
+            testInProgress = true;
+            enableButtons(false);
+            updateStatus('Preparing upload test...', 'status');
+            setProgress(0);
+            
+            try {
+                const uploadSpeed = await speedTestSDK.testUploadSpeed({
+                    onProgress: (progress) => {
+                        setProgress(Math.min(progress, 100));
+                        updateStatus(`Uploading: ${progress.toFixed(1)}% complete`, 'status');
+                    }
+                });
+                uploadResultElement.textContent = formatSpeed(uploadSpeed);
+                updateStatus('Upload test completed', 'success');
+                setProgress(100);
+            } catch (error) {
+                console.error('Upload test error:', error);
+                uploadResultElement.textContent = 'Error';
+                updateStatus('Upload test failed', 'error');
+            } finally {
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        async function runFullTest() {
+            if (testInProgress) return;
+            
+            console.log('Starting full test');
+            testInProgress = true;
+            enableButtons(false);
+            updateStatus('Starting full speed test...', 'status');
+            setProgress(0);
+            
+            // Reset result displays
+            pingResultElement.textContent = 'Testing...';
+            downloadResultElement.textContent = 'Waiting...';
+            uploadResultElement.textContent = 'Waiting...';
+            
+            try {
+                const results = await speedTestSDK.runFullTest({
+                    onProgress: (progress) => {
+                        setProgress(progress);
+                        if (progress < 33) {
+                            updateStatus('Running ping test...', 'status');
+                        } else if (progress < 66) {
+                            updateStatus('Running download test...', 'status');
+                        } else {
+                            updateStatus('Running upload test...', 'status');
+                        }
+                    }
+                });
+                
+                // Display results
+                pingResultElement.textContent = `${results.pingTime.toFixed(2)} ms`;
+                downloadResultElement.textContent = formatSpeed(results.downloadSpeed);
+                uploadResultElement.textContent = formatSpeed(results.uploadSpeed);
+                
+                updateStatus('Full speed test completed', 'success');
+                setProgress(100);
+            } catch (error) {
+                console.error('Full test error:', error);
+                updateStatus('Full test failed', 'error');
+            } finally {
+                testInProgress = false;
+                enableButtons(true);
+            }
+        }
+        
+        // Send upload test data in chunks
+        function sendUploadData() {
+            console.log('Starting to send upload data');
+            const chunkSize = 102400; // 100KB
+            const totalSize = 1024 * 1024; // 1MB
+            const chunks = 10;
+            
+            for (let i = 0; i < chunks; i++) {
+                setTimeout(() => {
+                    // Create random data - crypto.getRandomValues has a 65536 byte limit
+                    const data = new Uint8Array(chunkSize);
+                    
+                    // Fill the array in chunks of 65536 bytes or less
+                    const maxCryptoSize = 65536;
+                    for (let offset = 0; offset < chunkSize; offset += maxCryptoSize) {
+                        const length = Math.min(maxCryptoSize, chunkSize - offset);
+                        const slice = data.subarray(offset, offset + length);
+                        window.crypto.getRandomValues(slice);
+                    }
+                    
+                    // Send the chunk
+                    ws.send(data);
+                    
+                    // Update progress
+                    const progress = ((i + 1) / chunks) * 100;
+                    setProgress(progress);
+                    updateStatus(`Uploading: ${progress.toFixed(1)}% complete`, 'status');
+                    
+                    // Last chunk sent, no need to send completion message
+                    // The server calculates results automatically after receiving all chunks
+                    if (i === chunks - 1) {
+                        console.log('All upload chunks sent, waiting for server to calculate results');
+                    }
+                }, i * 200);
+            }
+        }
+        
+        // Helper functions
+        function updateStatus(message, type) {
+            debug('Status update:', message, type);
+            statusElement.textContent = message;
+            statusElement.className = `status ${type || ''}`;
+        }
+        
+        function setProgress(percent) {
+            progressContainer.style.display = 'block';
+            progressBar.style.width = `${percent}%`;
+        }
+        
+        function enableButtons(enabled) {
+            debug('Setting buttons enabled:', enabled);
+            pingButton.disabled = !enabled;
+            downloadButton.disabled = !enabled;
+            uploadButton.disabled = !enabled;
+            fullTestButton.disabled = !enabled;
+        }
+        
+        function formatBytes(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let size = bytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(2)} ${units[unitIndex]}`;
+        }
+        
+        function formatSpeed(bitsPerSecond) {
+            return SpeedTestWebSocketSdk.formatSpeed(bitsPerSecond);
+        }
+        
+        function generateRequestId() {
+            return Math.random().toString(36).substring(2, 15);
+        }
+        
+        // Event listeners
+        pingButton.addEventListener('click', testPing);
+        downloadButton.addEventListener('click', testDownload);
+        uploadButton.addEventListener('click', testUpload);
+        fullTestButton.addEventListener('click', runFullTest);
+        
+        // Initialize
+        enableButtons(false);
+        updateStatus('Connecting to server...', 'status');
+        initConnection();
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "speedtest-websocket-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for speed testing",
+  "main": "websocket-server.js",
+  "scripts": {
+    "start": "node websocket-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.13.0",
+    "dotenv": "^16.3.1"
+  }
+}
