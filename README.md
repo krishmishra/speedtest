@@ -34,13 +34,13 @@ This project provides a complete solution for network speed testing, including:
   - Response: `{"status":"ok"}`
   - Used to measure basic latency
 
-- **GET /download/1MB.test**: Download test endpoint
-  - Serves a 1MB random file for download speed testing
-  - Add a cache buster to prevent caching: `/download/1MB.test?cacheBuster=123456`
+- **GET /download/0.5MB.test**: Download test endpoint
+  - Serves a 0.5MB random file for download speed testing
+  - Add a cache buster to prevent caching: `/download/0.5MB.test?cacheBuster=123456`
 
 - **POST /upload**: Upload test endpoint
   - Accepts a file upload (up to 2MB) for upload speed testing
-  - Returns: `{"status":"ok","size":1048576}`
+  - Returns: `{"status":"ok","size":524288}`
 
 #### WebSocket API
 
@@ -122,7 +122,7 @@ This project provides a complete solution for network speed testing, including:
     "type": "download_start",
     "totalChunks": 10,
     "chunkSize": 102400,
-    "totalSize": 1048576,
+    "totalSize": 524288,
     "requestId": "unique-request-id"
   }
   ```
@@ -133,8 +133,8 @@ This project provides a complete solution for network speed testing, including:
     "type": "download_progress",
     "chunk": 5,
     "totalChunks": 10,
-    "bytesSent": 524288,
-    "totalBytes": 1048576,
+    "bytesSent": 262144,
+    "totalBytes": 524288,
     "progress": 50.0,
     "requestId": "unique-request-id"
   }
@@ -165,7 +165,7 @@ This project provides a complete solution for network speed testing, including:
     "type": "upload_progress",
     "chunk": 5,
     "totalChunks": 10,
-    "bytesReceived": 524288,
+    "bytesReceived": 262144,
     "progress": 50.0,
     "requestId": "unique-request-id"
   }
@@ -175,7 +175,7 @@ This project provides a complete solution for network speed testing, including:
   ```json
   {
     "type": "upload_result",
-    "bytesReceived": 1048576,
+    "bytesReceived": 524288,
     "duration": 1.5,
     "bitsPerSecond": 5592405.33,
     "timestamp": 1627984567890,
