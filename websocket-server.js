@@ -69,41 +69,108 @@ wss.on('connection', function connection(ws, req) {
   
   // Message handler
   ws.on('message', function incoming(message) {
-    // Check if message is binary data (for upload test)
-    if (Buffer.isBuffer(message)) {
+    console.log('DEBUG: Message type:', typeof message);
+    console.log('DEBUG: Is Buffer:', Buffer.isBuffer(message));
+    
+    // Convert message to string to check if it's JSON or binary
+    let messageStr;
+    try {
+      messageStr = message.toString('utf8');
+      console.log('DEBUG: Message as string (first 100 chars):', messageStr.substring(0, 100));
+    } catch (err) {
+      console.error('DEBUG: Error converting message to string:', err);
+      return;
+    }
+    
+    // Check if this is a JSON message (starts and ends with braces)
+    if (messageStr.trim().startsWith('{') && messageStr.trim().endsWith('}')) {
+      console.log('DEBUG: JSON message detected, processing as text');
+      // Handle JSON messages
+    } else {
+      console.log('DEBUG: Binary data detected, length:', message.length);
       // Handle binary data for upload test
       handleUploadChunk(ws, message);
       return;
     }
     
+    console.log('DEBUG: Processing JSON text message:', messageStr);
+    
+    // Direct ping handling with immediate response
+    if (messageStr.includes('"type":"ping"')) {
+      console.log('DEBUG: Detected ping message via string matching');
+      try {
+        const msg = JSON.parse(messageStr);
+        const requestId = msg.requestId;
+        
+        console.log('DEBUG: Creating pong response for requestId:', requestId);
+        // Create pong response
+        const pongResponse = {
+          type: 'pong',
+          timestamp: Date.now(),
+          requestId: requestId
+        };
+        
+        // Log the response
+        console.log(`DEBUG: Sending pong response: ${JSON.stringify(pongResponse)}`);
+        
+        // Send the response immediately
+        ws.send(JSON.stringify(pongResponse));
+        console.log('DEBUG: Pong response sent successfully');
+        return;
+      } catch (err) {
+        console.error('DEBUG: Error handling ping message:', err);
+        return;
+      }
+    }
+    
+    // Handle other JSON messages
     try {
-      const msg = JSON.parse(message);
+      console.log('DEBUG: Attempting to parse JSON message:', messageStr);
+      const msg = JSON.parse(messageStr);
+      console.log('DEBUG: Parsed message:', JSON.stringify(msg));
       
-      switch(msg.type) {
-        case 'ping':
-          handlePing(ws, msg);
-          break;
-          
+      // Extract message type and request ID
+      const msgType = msg.type;
+      const requestId = msg.requestId;
+      
+      console.log(`DEBUG: Processing message type: ${msgType}, requestId: ${requestId}`);
+      
+      // Route message to appropriate handler
+      switch(msgType) {
         case 'download':
+          console.log('DEBUG: Download message received with ID:', requestId);
           handleDownload(ws, msg);
           break;
           
         case 'upload':
+          console.log('DEBUG: Upload message received with ID:', requestId);
           handleUpload(ws, msg);
           break;
           
+        case 'upload_complete':
+          console.log('DEBUG: Upload complete message received with ID:', requestId);
+          // Send acknowledgment for upload completion
+          ws.send(JSON.stringify({
+            type: 'upload_complete_ack',
+            requestId: requestId,
+            timestamp: Date.now()
+          }));
+          break;
+          
         case 'full_test':
+          console.log('DEBUG: Full test message received with ID:', requestId);
           handleFullTest(ws, msg);
           break;
           
         default:
+          console.log('DEBUG: Unknown message type:', msgType);
           ws.send(JSON.stringify({
             type: 'error',
-            message: `Unknown command: ${msg.type}`
+            message: `Unknown command: ${msgType}`
           }));
       }
     } catch (error) {
-      console.error('Error processing message:', error);
+      console.error('DEBUG: Error processing JSON message:', error, 'Raw message:', messageStr);
       ws.send(JSON.stringify({
         type: 'error',
         message: 'Invalid message format'
@@ -121,12 +188,31 @@ wss.on('connection', function connection(ws, req) {
  * Handle ping test
  */
 function handlePing(ws, msg) {
-  // Simply echo back with timestamp for client to calculate RTT
-  ws.send(JSON.stringify({
+  console.log(`Received ping request with ID: ${msg.requestId}`);
+  console.log('WebSocket state:', ws.readyState);
+  
+  // Create pong response
+  const pongResponse = {
     type: 'pong',
     timestamp: Date.now(),
     requestId: msg.requestId
-  }));
+  };
+  
+  // Log the response
+  console.log(`Sending pong response: ${JSON.stringify(pongResponse)}`);
+  
+  try {
+    // Send the response
+    ws.send(JSON.stringify(pongResponse), (err) => {
+      if (err) {
+        console.error(`Error sending pong response: ${err}`);
+      } else {
+        console.log('Pong response sent successfully');
+      }
+    });
+  } catch (error) {
+    console.error('Exception sending pong response:', error);
+  }
 }
 
 /**
@@ -202,42 +288,43 @@ function handleDownload(ws, msg) {
  * Handle binary upload chunks
  */
 function handleUploadChunk(ws, data) {
-  // If no upload tracker exists, ignore the chunk
+  // If no upload tracker exists, this might be a browser artifact or other unexpected binary data
+  // Just log it and ignore it rather than treating it as an error
   if (!ws.uploadTracker) {
-    console.log('Received binary data but no active upload test');
+    console.log('Received binary data but no active upload test - ignoring (likely browser WebSocket artifact)');
     return;
   }
   
-  // Update tracker
-  ws.uploadTracker.bytesReceived += data.length;
-  ws.uploadTracker.chunksReceived++;
+  // Add bytes to the tracker
+  ws.uploadTracker.receivedBytes += data.length;
+  ws.uploadTracker.bytesReceived = ws.uploadTracker.receivedBytes; // Keep both properties in sync
   
   // Calculate progress
-  const progress = Math.min(100, Math.floor((ws.uploadTracker.chunksReceived / ws.uploadTracker.totalChunks) * 100));
+  const progress = Math.min((ws.uploadTracker.receivedBytes / ws.uploadTracker.totalSize) * 100, 100);
   
-  // Send progress update
-  ws.send(JSON.stringify({
-    type: 'upload_progress',
-    chunk: ws.uploadTracker.chunksReceived,
-    totalChunks: ws.uploadTracker.totalChunks,
-    bytesReceived: ws.uploadTracker.bytesReceived,
-    progress: progress,
-    requestId: ws.uploadTracker.requestId
-  }));
-  
+  // Send progress update every 10%
+  if (progress >= ws.uploadTracker.lastProgressUpdate + 10 || progress >= 100) {
+    ws.uploadTracker.lastProgressUpdate = Math.floor(progress / 10) * 10;
+    
+    ws.send(JSON.stringify({
+      type: 'upload_progress',
+      progress: progress,
+      requestId: ws.uploadTracker.requestId
+    }));
+  }
   // If all chunks received, send result
-  if (ws.uploadTracker.chunksReceived >= ws.uploadTracker.totalChunks) {
+  if (ws.uploadTracker.receivedBytes >= ws.uploadTracker.totalSize) {
     // Calculate results
     const duration = (Date.now() - ws.uploadTracker.startTime) / 1000; // seconds
-    const bytesPerSecond = ws.uploadTracker.bytesReceived / duration;
+    const bytesPerSecond = ws.uploadTracker.receivedBytes / duration;
     const bitsPerSecond = bytesPerSecond * 8;
     
-    console.log('Upload complete:', ws.uploadTracker.bytesReceived, 'bytes received');
+    console.log('Upload complete:', ws.uploadTracker.receivedBytes, 'bytes received');
     
     // Send results
     ws.send(JSON.stringify({
       type: 'upload_result',
-      bytesReceived: ws.uploadTracker.bytesReceived,
+      bytesReceived: ws.uploadTracker.receivedBytes,
       duration: duration,
       bitsPerSecond: bitsPerSecond,
       timestamp: Date.now(),
@@ -257,10 +344,13 @@ function handleUpload(ws, msg) {
   const uploadTracker = {
     startTime: Date.now(),
     bytesReceived: 0,
-    chunksReceived: 0,
-    totalChunks: msg.totalChunks || 0,
+    receivedBytes: 0,
+    totalSize: msg.size || 1024 * 1024, // Default to 1MB if not specified
+    lastProgressUpdate: 0,
     requestId: msg.requestId
   };
+  
+  console.log(`Starting upload test with ID: ${msg.requestId}, size: ${uploadTracker.totalSize} bytes`);
   
   // Store tracker in the WebSocket object
   ws.uploadTracker = uploadTracker;
@@ -272,7 +362,9 @@ function handleUpload(ws, msg) {
     requestId: msg.requestId
   }));
   
-  // Upload handling is now done by the global message handler
+  console.log('Upload ready message sent');
+  
+  // Upload handling is now done by the binary message handler
   // which detects binary data and routes it to handleUploadChunk
 }
 

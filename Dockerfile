@@ -58,7 +58,7 @@ RUN chmod +x /usr/local/bin/start-services.sh
 ENV WS_PORT=8090
 
 # Expose port 80
-EXPOSE 80
+EXPOSE 8080
 # Expose WebSocket port
 EXPOSE 8090
 
