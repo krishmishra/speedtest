@@ -22,8 +22,8 @@ RUN apk add --no-cache curl \
 # Set working directory
 WORKDIR /usr/share/nginx/html
 
-# Create a 1MB test file for testing
-RUN dd if=/dev/urandom of=1MB.test bs=1M count=1
+# Create a 0.5MB test file for testing
+RUN dd if=/dev/urandom of=0.5MB.test bs=512K count=1
 
 # Create a simple JSON endpoint for ping tests (for backward compatibility)
 RUN echo '{"status":"ok"}' > empty.json

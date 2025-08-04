@@ -138,7 +138,7 @@ EOF
 # Add JWT validation for protected endpoints if auth is enabled
 if [ "$ENABLE_AUTH" = "true" ]; then
     # Add endpoints with JWT validation
-    for endpoint in "/ping" "/upload" "/download/1MB.test"; do
+    for endpoint in "/ping" "/upload" "/download/0.5MB.test"; do
         cat >> /usr/local/openresty/nginx/conf/nginx.conf << EOF
         
         # Protected endpoint: ${endpoint}
@@ -161,9 +161,9 @@ EOF
             default_type application/json;
             return 200 '{"status":"ok"}';
 EOF
-        elif [ "$endpoint" = "/download/1MB.test" ]; then
+        elif [ "$endpoint" = "/download/0.5MB.test" ]; then
             cat >> /usr/local/openresty/nginx/conf/nginx.conf << EOF
-            alias /usr/share/nginx/html/1MB.test;
+            alias /usr/share/nginx/html/0.5MB.test;
 EOF
         fi
         
@@ -219,7 +219,7 @@ else
         }
         
         # Download endpoint
-        location = /download/1MB.test {
+        location = /download/0.5MB.test {
             if (\$request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' '*';
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
@@ -233,7 +233,7 @@ else
             add_header 'Access-Control-Allow-Origin' '*' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, ${TOKEN_HEADER}, Upgrade, Connection' always;
-            alias /usr/share/nginx/html/1MB.test;
+            alias /usr/share/nginx/html/0.5MB.test;
         }
 EOF
 fi

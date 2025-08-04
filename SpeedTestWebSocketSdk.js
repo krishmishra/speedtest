@@ -375,8 +375,9 @@ class SpeedTestWebSocketSdkNew {
      * Send upload data in chunks
      */
     sendUploadData() {
-        // Optimized chunk size: 64KB chunks (maximum for crypto.getRandomValues)
-        const chunkSize = 65536; // 64KB chunks - crypto API limit
+        // Use much larger chunks now that we have a custom random data generator
+        // 256KB chunks for better performance
+        const chunkSize = 262144; // 256KB chunks
         const totalSize = 512 * 1024; // 0.5MB total
         const numChunks = Math.ceil(totalSize / chunkSize);
         
@@ -391,7 +392,7 @@ class SpeedTestWebSocketSdkNew {
             const actualChunkSize = Math.min(chunkSize, remainingBytes);
             const data = new Uint8Array(actualChunkSize);
             
-            // Fill with random data safely (respecting the 64KB limit)
+            // Fill with random data using our custom method (works with any size)
             this.fillRandomData(data);
             
             chunks.push(data.buffer);
@@ -446,24 +447,55 @@ class SpeedTestWebSocketSdkNew {
     }
     
     /**
-     * Fill an array with random data safely, respecting the crypto API's 64KB limit
+     * Fill an array with random data using a faster method that works for any size
      * 
      * @param {Uint8Array} array - Array to fill with random data
      */
     fillRandomData(array) {
-        const CRYPTO_CHUNK_SIZE = 65536; // 64KB - maximum size for crypto.getRandomValues()
-        let offset = 0;
+        // For very small arrays, still use crypto for better randomness
+        if (array.length <= 65536) {
+            window.crypto.getRandomValues(array);
+            return;
+        }
         
-        while (offset < array.length) {
-            const length = Math.min(CRYPTO_CHUNK_SIZE, array.length - offset);
-            const chunk = new Uint8Array(length);
+        // For larger arrays, use a faster pseudo-random method
+        // This is a compromise between speed and randomness
+        // We'll use a simple but fast PRNG algorithm
+        
+        // Start with a small truly random seed (32 bytes)
+        const seed = new Uint32Array(8);
+        window.crypto.getRandomValues(seed);
+        
+        // Use the seed to initialize our PRNG state
+        let s0 = seed[0];
+        let s1 = seed[1];
+        let s2 = seed[2];
+        let s3 = seed[3];
+        
+        // Fill the array with pseudo-random data
+        for (let i = 0; i < array.length; i += 4) {
+            // xorshift128+ algorithm - fast and decent quality
+            let t = s0;
+            t ^= t << 11;
+            t ^= t >>> 8;
+            s0 = s1;
+            s1 = s2;
+            s2 = s3;
+            s3 = s3 ^ (s3 >>> 19) ^ t ^ (t >>> 8);
             
-            // Generate random values for this chunk
-            window.crypto.getRandomValues(chunk);
-            
-            // Copy the chunk into the main array
-            array.set(chunk, offset);
-            offset += length;
+            // Convert to bytes and add to array
+            const value = s3;
+            if (i + 3 < array.length) {
+                array[i] = value & 0xFF;
+                array[i + 1] = (value >>> 8) & 0xFF;
+                array[i + 2] = (value >>> 16) & 0xFF;
+                array[i + 3] = (value >>> 24) & 0xFF;
+            } else {
+                // Handle edge case for last few bytes
+                for (let j = 0; j < array.length - i; j++) {
+                    array[i + j] = (value >>> (j * 8)) & 0xFF;
+                }
+            }
         }
     }
 

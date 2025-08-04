@@ -46,7 +46,7 @@ class SpeedTestSDK {
             headers[this.tokenHeaderKey] = this.tokenHeaderValue;
           }
           
-          const response = await fetch(`${this.serverURL}/download/1MB.test?cacheBuster=${Date.now()}`, {
+          const response = await fetch(`${this.serverURL}/download/0.5MB.test?cacheBuster=${Date.now()}`, {
             method: 'GET',
             headers: headers
           });
