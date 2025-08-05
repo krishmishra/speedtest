@@ -532,6 +532,9 @@ All endpoints have been tested and verified:
    ```
 
 ## Building and Running
+
+![Speedtest Hosting](speedtest.png)
+
 docker stop speedtest-server && docker rm speedtest-server && docker build -t speedtest-server . && docker run -d --name speedtest-server -p 8080:8080 -p 8090:8090 speedtest-server
 ### Development Mode
 
