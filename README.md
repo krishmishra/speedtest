@@ -352,13 +352,15 @@ speedTest.testUploadSpeed(progress: { progress in
 The React Native SDK (`SpeedTestSdk.js`) can be used in React Native applications:
 
 ```javascript
-import SpeedTestSdk from './SpeedTestSdk';
+import SpeedTestSDK from './SpeedTestSdk';
 
 // Initialize the SDK
-const speedTest = new SpeedTestSdk('http://example.com', {
-  tokenHeader: 'Authorization',
-  tokenValue: 'Bearer your-token'
-});
+const speedTest = new SpeedTestSDK(
+  'http://example.com',
+  'Authorization',
+  'Bearer your-token',
+  3 // Optional: number of test iterations
+);
 
 // Test ping
 speedTest.testPing()
@@ -366,17 +368,13 @@ speedTest.testPing()
   .catch(error => console.error('Error:', error));
 
 // Test download speed
-speedTest.testDownloadSpeed({
-  onProgress: progress => console.log(`Download progress: ${progress}%`)
-})
-  .then(speed => console.log(`Download speed: ${SpeedTestSdk.formatSpeed(speed)}`))
+speedTest.testDownloadSpeed()
+  .then(speed => console.log(`Download speed: ${speedTest.formatSpeed(speed)}`))
   .catch(error => console.error('Error:', error));
 
 // Test upload speed
-speedTest.testUploadSpeed({
-  onProgress: progress => console.log(`Upload progress: ${progress}%`)
-})
-  .then(speed => console.log(`Upload speed: ${SpeedTestSdk.formatSpeed(speed)}`))
+speedTest.testUploadSpeed()
+  .then(speed => console.log(`Upload speed: ${speedTest.formatSpeed(speed)}`))
   .catch(error => console.error('Error:', error));
 ```
 
@@ -448,40 +446,49 @@ speedTest.disconnect()
 The React Native WebSocket SDK (`SpeedTestWebSocketSdk.js`) provides a WebSocket-based interface for React Native applications:
 
 ```javascript
-import SpeedTestWebSocketSdk from './SpeedTestWebSocketSdk';
+import SpeedTestWebSocketSdkNew from './SpeedTestWebSocketSdk';
 
 // Initialize the WebSocket SDK
-const speedTest = new SpeedTestWebSocketSdk('ws://example.com/ws', {
-  authToken: 'your-token'
+const speedTest = new SpeedTestWebSocketSdkNew('ws://example.com/ws', {
+  authToken: 'your-token',
+  debug: true // Optional: enable debug logging
 });
 
 // Test ping
-speedTest.testPing()
+speedTest.testPing({
+  onError: error => console.error('Error:', error)
+})
   .then(pingTime => console.log(`WebSocket Ping: ${pingTime} ms`))
   .catch(error => console.error('Error:', error));
 
 // Test download speed
 speedTest.testDownloadSpeed({
-  onProgress: progress => console.log(`Download progress: ${progress}%`)
+  onProgress: progress => console.log(`Download progress: ${progress}%`),
+  onError: error => console.error('Error:', error),
+  size: 512 * 1024 // Optional: size in bytes (default: 512KB)
 })
-  .then(speed => console.log(`Download speed: ${SpeedTestWebSocketSdk.formatSpeed(speed)}`))
+  .then(speed => console.log(`Download speed: ${speedTest.formatSpeed(speed)}`))
   .catch(error => console.error('Error:', error));
 
 // Test upload speed
 speedTest.testUploadSpeed({
-  onProgress: progress => console.log(`Upload progress: ${progress}%`)
+  onProgress: progress => console.log(`Upload progress: ${progress}%`),
+  onError: error => console.error('Error:', error),
+  size: 512 * 1024 // Optional: size in bytes (default: 512KB)
 })
-  .then(speed => console.log(`Upload speed: ${SpeedTestWebSocketSdk.formatSpeed(speed)}`))
+  .then(speed => console.log(`Upload speed: ${speedTest.formatSpeed(speed)}`))
   .catch(error => console.error('Error:', error));
 
 // Run full test
 speedTest.runFullTest({
-  onProgress: progress => console.log(`Test progress: ${progress}%`)
+  onProgress: progress => console.log(`Test progress: ${progress}%`),
+  onError: error => console.error('Error:', error),
+  size: 512 * 1024 // Optional: size in bytes (default: 512KB)
 })
   .then(results => {
     console.log(`Ping: ${results.pingTime} ms`);
-    console.log(`Download: ${SpeedTestWebSocketSdk.formatSpeed(results.downloadSpeed)}`);
-    console.log(`Upload: ${SpeedTestWebSocketSdk.formatSpeed(results.uploadSpeed)}`);
+    console.log(`Download: ${speedTest.formatSpeed(results.downloadSpeed)}`);
+    console.log(`Upload: ${speedTest.formatSpeed(results.uploadSpeed)}`);
   })
   .catch(error => console.error('Error:', error));
 
@@ -596,3 +603,19 @@ Before deploying to production, make sure to:
 - The client generates a 1MB payload for upload tests
 - The server provides a 1MB test file for download tests
 - 1MB is a practical choice for mobile/iPad use cases, especially if offline data packages are in the range of 5-50MB
+
+## Performance Estimates
+
+### Smallest AKS Instance (B2s VM: 2 vCPU, 4GB RAM)
+
+#### REST API Estimated Throughput
+- ~200-300 concurrent users
+- ~1,000-1,500 requests per minute
+- Limited primarily by connection establishment overhead
+
+#### WebSocket Estimated Throughput
+- ~500-800 concurrent users
+- ~2,000-3,000 operations per minute
+- Limited primarily by memory for maintaining connections
+
+*Note: Actual performance may vary based on network conditions, specific AKS configuration, and client behavior patterns. For precise numbers, load testing is recommended.*
