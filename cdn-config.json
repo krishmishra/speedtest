@@ -1,0 +1,93 @@
+{
+    "azureFrontDoor": {
+        "rules": [
+            {
+                "name": "APIKeyValidation",
+                "order": 1,
+                "enabled": true,
+                "conditions": [
+                    {
+                        "name": "IsApiRequest",
+                        "parameters": {
+                            "operator": "Equal",
+                            "values": [
+                                "/ping",
+                                "/download/*",
+                                "/upload"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "HeaderCondition",
+                        "parameters": {
+                            "operator": "Equal",
+                            "variable": "X-API-Key",
+                            "values": [
+                                "your-api-key-here"
+                            ]
+                        }
+                    }
+                ],
+                "actions": [
+                    {
+                        "name": "CacheConfiguration",
+                        "parameters": {
+                            "cacheDuration": "0s",
+                            "cacheBehavior": "BypassCache"
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "RateLimiting",
+                "order": 2,
+                "enabled": true,
+                "conditions": [
+                    {
+                        "name": "IsApiRequest",
+                        "parameters": {
+                            "operator": "Equal",
+                            "values": [
+                                "/upload"
+                            ]
+                        }
+                    }
+                ],
+                "actions": [
+                    {
+                        "name": "RateLimit",
+                        "parameters": {
+                            "rateLimitDuration": "1m",
+                            "rateLimitThreshold": 100,
+                            "action": "Block"
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "awsCloudFront": {
+        "functions": [
+            {
+                "name": "validateApiKey",
+                "code": "function handler(event) {\n    const request = event.request;\n    const headers = request.headers;\n    \n    // Check for API key\n    const apiKey = headers['x-api-key']?.value;\n    if (!apiKey || apiKey !== 'your-api-key-here') {\n        return {\n            statusCode: 401,\n            headers: {\n                'content-type': { value: 'text/plain' }\n            },\n            body: 'Unauthorized'\n        };\n    }\n    \n    // Add cache control\n    request.headers['cache-control'] = { value: 'no-cache' };\n    \n    return request;\n}"
+            }
+        ],
+        "distribution": {
+            "defaultCacheBehavior": {
+                "viewerProtocolPolicy": "redirect-to-https",
+                "allowedMethods": ["GET", "HEAD", "POST", "OPTIONS"],
+                "cachedMethods": ["GET", "HEAD"],
+                "compress": true,
+                "originRequestPolicyId": "your-origin-request-policy-id"
+            },
+            "originRequestPolicy": {
+                "name": "SpeedTestPolicy",
+                "headers": {
+                    "quantity": 2,
+                    "items": ["X-API-Key", "Cache-Control"]
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDN Speed Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .loading {
+            color: #666;
+        }
+        .error {
+            color: #ff0000;
+        }
+        .success {
+            color: #008000;
+        }
+    </style>
+</head>
+<body>
+    <h1>CDN Speed Test</h1>
+    
+    <div class="test-results" id="results">
+        <h2>Test Results</h2>
+        <div id="pingResult"></div>
+        <div id="downloadResult"></div>
+        <div id="uploadResult"></div>
+    </div>
+
+    <script type="module">
+        // Import CDN SDK from CDN
+        import CDNValidator from 'https://your-cdn-domain.com/cdn/sdk/cdn-sdk.js';
+
+        // Initialize validator with CDN URL and API key
+        const validator = new CDNValidator(
+            'https://your-cdn-domain.com',
+            'your-api-key-here'
+        );
+
+        // Helper function to update results
+        function updateResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = result;
+            }
+        }
+
+        // Run speed test
+        async function runSpeedTest() {
+            try {
+                // Ping test
+                updateResult('pingResult', 'Testing ping...');
+                const ping = await validator.ping();
+                updateResult('pingResult', `Ping: ${ping}ms`);
+
+                // Download test
+                updateResult('downloadResult', 'Testing download...');
+                const downloadSpeed = await validator.downloadSpeed();
+                updateResult('downloadResult', `Download: ${downloadSpeed}Mbps`);
+
+                // Upload test
+                updateResult('uploadResult', 'Testing upload...');
+                const uploadSpeed = await validator.uploadSpeed();
+                updateResult('uploadResult', `Upload: ${uploadSpeed}Mbps`);
+            } catch (error) {
+                console.error('Test failed:', error);
+                updateResult('pingResult', 'Ping: Failed');
+                updateResult('downloadResult', 'Download: Failed');
+                updateResult('uploadResult', 'Upload: Failed');
+            }
+        }
+
+        // Start the test when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            runSpeedTest();
+        });
+    </script>
+</body>
+</html>
