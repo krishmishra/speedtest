@@ -199,9 +199,9 @@ This project provides a complete solution for network speed testing, including:
    - Returns: `{"status":"ok"}` with JSON content type
    - Used for: Measuring round-trip time
 
-2. **Download Endpoint** (`/download/1MB.test`):
+2. **Download Endpoint** (`/download/0.5MB.test`):
    - Method: GET
-   - Returns: 1MB test file
+   - Returns: 0.5MB test file
    - Used for: Measuring download speed
 
 3. **Upload Endpoint** (`/upload`):
@@ -264,9 +264,9 @@ The project uses OpenResty (Nginx + Lua) to perform JWT validation directly in t
    - Returns: `{"status":"ok"}` with JSON content type
    - Used for: Measuring round-trip time
 
-2. **Download Endpoint** (`/download/1MB.test`):
+2. **Download Endpoint** (`/download/0.5MB.test`):
    - Method: GET
-   - Returns: 1MB test file
+   - Returns: 0.5MB test file
    - Used for: Measuring download speed
 
 3. **Upload Endpoint** (`/upload`):
